@@ -5,7 +5,7 @@ Che thông tin cá nhân và thông tin nội bộ (SĐT, CCCD, MST, email, số
 - **Claude Code**: đăng nhập tài khoản Claude (Pro/Max/Team/Enterprise) như bình thường. Không cần API key hay API Platform.
 - **GitHub Copilot**: đăng nhập GitHub như bình thường. Bao phủ chat, agent và gợi ý code inline.
 
-Hướng dẫn cài đặt và triển khai đầy đủ: **[plan.md](./plan.md)**.
+Hướng dẫn cài đặt và triển khai đầy đủ: **[DEPLOYMENT_DEPLOYMENT_PLAN.md](./DEPLOYMENT_DEPLOYMENT_PLAN.md)**.
 
 ```
 Claude Code ──(OAuth của dev)──► claude-proxy :4000 ──────► api.anthropic.com
@@ -37,7 +37,7 @@ cp .env.example .env        # đổi PII_GUARD_KEY nếu máy dùng chung
 ./scripts/test.sh           # unit test
 ```
 
-`up.sh` kiểm tra cấu hình, khởi động, và chờ mọi service healthy. Dừng bằng `docker compose down`. Mọi biến cấu hình được giải thích trong `.env.example` và [plan.md mục 4](./plan.md#4-tham-chiếu-cấu-hình-env).
+`up.sh` kiểm tra cấu hình, khởi động, và chờ mọi service healthy. Dừng bằng `docker compose down`. Mọi biến cấu hình được giải thích trong `.env.example` và [DEPLOYMENT_DEPLOYMENT_PLAN.md mục 4](./DEPLOYMENT_DEPLOYMENT_PLAN.md#4-tham-chiếu-cấu-hình-env).
 
 ## Claude Code
 
@@ -59,7 +59,7 @@ claude
 
    Thấy dạng `[VN_PHONE_3>` và `[EMAIL_ADDRESS_4>` là guard đang hoạt động (số thứ tự tùy request, vì ngữ cảnh Claude Code tự chèn cũng được đánh số). Hỏi bình thường thì bạn sẽ thấy lại số thật, vì proxy khôi phục giá trị trong câu trả lời.
 
-Biến `export` chỉ có hiệu lực trong terminal đó, **không** áp dụng cho extension VS Code. Để dùng lâu dài, hoặc triển khai cho cả tổ chức bằng managed settings, xem [plan.md mục 6](./plan.md#6-claude-code).
+Biến `export` chỉ có hiệu lực trong terminal đó, **không** áp dụng cho extension VS Code. Để dùng lâu dài, hoặc triển khai cho cả tổ chức bằng managed settings, xem [DEPLOYMENT_PLAN.md mục 6](./DEPLOYMENT_PLAN.md#6-claude-code).
 
 Lưu ý: auto mode qua guard có thể bị treo giữa chừng. Nên dùng chế độ thường hoặc accept-edits (Shift+Tab).
 
@@ -72,7 +72,7 @@ Lưu ý: auto mode qua guard có thể bị treo giữa chừng. Nên dùng ch�
    sudo update-ca-certificates
    ```
 
-   macOS, Windows, và trường hợp VS Code chạy trên Windows còn stack chạy trong WSL: xem [plan.md mục 7.2](./plan.md#72-bước-1-tin-ca-của-proxy).
+   macOS, Windows, và trường hợp VS Code chạy trên Windows còn stack chạy trong WSL: xem [DEPLOYMENT_PLAN.md mục 7.2](./DEPLOYMENT_PLAN.md#72-bước-1-tin-ca-của-proxy).
 2. Đặt proxy của editor là `http://localhost:8080` (VS Code: **Http: Proxy**, giữ **Proxy Strict SSL** bật; JetBrains: HTTP Proxy → Manual). Copilot CLI: `HTTPS_PROXY=http://localhost:8080` và `NODE_EXTRA_CA_CERTS=<đường dẫn CA>`.
 3. Khởi động lại editor, đăng nhập GitHub, gửi một câu chat có email giả, rồi kiểm tra:
 
@@ -85,11 +85,11 @@ Lưu ý: auto mode qua guard có thể bị treo giữa chừng. Nên dùng ch�
 
 | Tính năng | Bật bằng | Chi tiết |
 | --- | --- | --- |
-| Trích chữ PDF rồi che (thay vì loại bỏ file) | `FILE_POLICY=extract` | [plan.md mục 8](./plan.md#8-file-pdf-và-ocr) |
-| SLM phát hiện thêm bí mật, địa chỉ, số tài khoản (cần GPU) | `ENABLE_SLM_GATE=1` | [plan.md mục 9](./plan.md#9-tầng-tùy-chọn-slm-ner-ml-cổ-điển) |
-| Che SĐT/CCCD kể cả khi không có từ khóa đi kèm | `VN_PHONE_SCORE=0.8`, `VN_CCCD_SCORE=0.8` | [plan.md mục 5](./plan.md#5-chính-sách-phát-hiện-và-cách-tinh-chỉnh) |
-| Thêm tên dự án, khách hàng, hostname nội bộ | `INTERNAL_DENY_LIST=...` | [plan.md mục 5.3](./plan.md#53-tinh-chỉnh-thường-gặp) |
-| Hook cảnh báo placeholder bị ghi xuống file | `./scripts/install-hook.sh` | [plan.md mục 6.5](./plan.md#65-hook-cảnh-báo-placeholder-bị-ghi-xuống-file) |
+| Trích chữ PDF rồi che (thay vì loại bỏ file) | `FILE_POLICY=extract` | [DEPLOYMENT_PLAN.md mục 8](./DEPLOYMENT_PLAN.md#8-file-pdf-và-ocr) |
+| SLM phát hiện thêm bí mật, địa chỉ, số tài khoản (cần GPU) | `ENABLE_SLM_GATE=1` | [DEPLOYMENT_PLAN.md mục 9](./DEPLOYMENT_PLAN.md#9-tầng-tùy-chọn-slm-ner-ml-cổ-điển) |
+| Che SĐT/CCCD kể cả khi không có từ khóa đi kèm | `VN_PHONE_SCORE=0.8`, `VN_CCCD_SCORE=0.8` | [DEPLOYMENT_PLAN.md mục 5](./DEPLOYMENT_PLAN.md#5-chính-sách-phát-hiện-và-cách-tinh-chỉnh) |
+| Thêm tên dự án, khách hàng, hostname nội bộ | `INTERNAL_DENY_LIST=...` | [DEPLOYMENT_PLAN.md mục 5.3](./DEPLOYMENT_PLAN.md#53-tinh-chỉnh-thường-gặp) |
+| Hook cảnh báo placeholder bị ghi xuống file | `./scripts/install-hook.sh` | [DEPLOYMENT_PLAN.md mục 6.5](./DEPLOYMENT_PLAN.md#65-hook-cảnh-báo-placeholder-bị-ghi-xuống-file) |
 
 Xem guard sẽ xử lý một đoạn văn bản thế nào:
 
@@ -106,7 +106,7 @@ Xem guard sẽ xử lý một đoạn văn bản thế nào:
 ./scripts/up.sh                         # quay lại chế độ thật
 ```
 
-Chạy lại `test_claude_subscription.sh` sau mỗi lần nâng Claude Code. Checklist nghiệm thu: [plan.md mục 11](./plan.md#11-kiểm-thử-nghiệm-thu).
+Chạy lại `test_claude_subscription.sh` sau mỗi lần nâng Claude Code. Checklist nghiệm thu: [DEPLOYMENT_PLAN.md mục 11](./DEPLOYMENT_PLAN.md#11-kiểm-thử-nghiệm-thu).
 
 ## Xử lý sự cố thường gặp
 
@@ -121,7 +121,7 @@ Chạy lại `test_claude_subscription.sh` sau mỗi lần nâng Claude Code. Ch
 | Số điện thoại không bị che | Không có từ khóa đi kèm: đặt `VN_PHONE_SCORE=0.8` |
 | Copilot lỗi chứng chỉ | Cài CA vào kho tin cậy, khởi động lại editor |
 
-Danh sách đầy đủ: [plan.md mục 13](./plan.md#13-xử-lý-sự-cố). Giới hạn đã biết: [plan.md mục 14](./plan.md#14-giới-hạn-đã-biết).
+Danh sách đầy đủ: [DEPLOYMENT_PLAN.md mục 13](./DEPLOYMENT_PLAN.md#13-xử-lý-sự-cố). Giới hạn đã biết: [DEPLOYMENT_PLAN.md mục 14](./DEPLOYMENT_PLAN.md#14-giới-hạn-đã-biết).
 
 ## Cấu trúc
 
@@ -133,7 +133,7 @@ analyzer_plus/         lớp bọc Presidio: rule tiếng Việt, allow list, SL
 extractor/             trích văn bản PDF (marker-pdf) trong sandbox
 hooks/                 hook Claude Code cảnh báo placeholder bị ghi xuống file
 scripts/               up.sh, analyze.sh, test.sh, test_claude_subscription.sh, install-hook.sh
-plan.md                hướng dẫn cài đặt và triển khai chi tiết
+DEPLOYMENT_PLAN.md                hướng dẫn cài đặt và triển khai chi tiết
 ```
 # PII-Guard-demo-with-deployment-plan
 # PII-Guard-demo-with-deployment-plan
