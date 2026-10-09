@@ -1,0 +1,6 @@
+.git
+.env
+logs
+copilot_proxy/ca
+__pycache__
+*.pyc

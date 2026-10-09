@@ -1,0 +1,168 @@
+# PII Guard: Claude Code (Claude subscription login) and GitHub Copilot (GitHub login) through the
+# same Presidio pipeline. No Anthropic/OpenAI API key anywhere.
+#
+#   Claude Code ──► claude-proxy :4000 ──► api.anthropic.com  (request forwarded verbatim except masked text)
+#                      └─ files ──► extractor (profile ocr, FILE_POLICY=extract)
+#   Copilot     ──► copilot-proxy :8080 ──► GitHub Copilot  (only Copilot hosts decrypted)
+#                      both ──► presidio-analyzer (analyzer_plus) + presidio-anonymizer
+#
+# Start: ./scripts/up.sh        Test without real traffic: ./scripts/up.sh test
+services:
+  claude-proxy:
+    build:
+      context: .
+      dockerfile: claude_proxy/Dockerfile
+    image: pii-guard/claude-proxy:local
+    ports: ["4000:4000"]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      UPSTREAM_BASE: ${UPSTREAM_BASE:-https://api.anthropic.com}
+      PII_GUARD_KEY: ${PII_GUARD_KEY:-}
+      ANALYZER_URL: http://presidio-analyzer:3000
+      MASK_ENTITIES: ${MASK_ENTITIES:-PHONE_NUMBER,EMAIL_ADDRESS,CREDIT_CARD,VN_PHONE,VN_CCCD,VN_TAX_ID,INTERNAL_TERM,ADDRESS,BANK_ACCOUNT}
+      BLOCK_ENTITIES: ${BLOCK_ENTITIES:-SECRET}
+      SCORE_THRESHOLD: ${SCORE_THRESHOLD:-0.75}
+      FILE_POLICY: ${FILE_POLICY:-block}
+      EXTRACTOR_URL: http://extractor:8000
+      EXTRACT_TIMEOUT_S: ${EXTRACT_TIMEOUT_S:-120}
+    depends_on:
+      presidio-analyzer:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:4000/__health')"]
+      interval: 5s
+      retries: 20
+
+  copilot-proxy:
+    image: ${MITMPROXY_IMAGE:-mitmproxy/mitmproxy:12.2.1}
+    command:
+      - mitmdump
+      - --listen-port=8080
+      - --set=allow_hosts=${COPILOT_HOSTS:-(^|\.)githubcopilot\.com(:\d+)?$$|^copilot-proxy\.githubusercontent\.com(:\d+)?$$}
+      - --set=flow_detail=0
+      - --set=termlog_verbosity=info
+      - -s
+      - /app/copilot_proxy/addon.py
+    ports: ["8080:8080"]
+    volumes:
+      - ./copilot_proxy:/app/copilot_proxy:ro
+      - ./copilot_proxy/ca:/home/mitmproxy/.mitmproxy     # generated CA: install it on dev machines
+    environment:
+      COPILOT_HOSTS: ${COPILOT_HOSTS:-(^|\.)githubcopilot\.com(:\d+)?$$|^copilot-proxy\.githubusercontent\.com(:\d+)?$$}
+      ANALYZER_URL: http://presidio-analyzer:3000
+      ANONYMIZER_URL: http://presidio-anonymizer:3000
+      COPILOT_SCORE_THRESHOLD: ${COPILOT_SCORE_THRESHOLD:-0.75}
+      COPILOT_ANALYZE_TIMEOUT_S: ${COPILOT_ANALYZE_TIMEOUT_S:-10}
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      presidio-analyzer:
+        condition: service_healthy
+      presidio-anonymizer:
+        condition: service_healthy
+
+  # Presidio facade: injects Vietnamese rules + internal deny-list, collapses overlapping findings,
+  # optional local-SLM second opinion. Fails closed (502) if the core analyzer fails.
+  presidio-analyzer:
+    build:
+      context: .
+      dockerfile: analyzer_plus/Dockerfile
+    image: pii-guard/analyzer-plus:local
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      PRESIDIO_CORE_URL: http://presidio-analyzer-core:3000
+      PRESIDIO_CORE_TIMEOUT_S: ${PRESIDIO_CORE_TIMEOUT_S:-15}
+      INTERNAL_DENY_LIST: ${INTERNAL_DENY_LIST:-corp.local,internal.example.com,db-prod-01}
+      ALLOW_LIST: ${ALLOW_LIST:-noreply@anthropic.com}
+      VN_PHONE_SCORE: ${VN_PHONE_SCORE:-0.72}
+      VN_CCCD_SCORE: ${VN_CCCD_SCORE:-0.55}
+      VN_TAX_ID_SCORE: ${VN_TAX_ID_SCORE:-0.48}
+      ENABLE_SLM_GATE: ${ENABLE_SLM_GATE:-0}
+      SLM_BASE_URL: ${SLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      SLM_MODEL: ${SLM_MODEL:-qwen2.5:1.5b}
+      SLM_TIMEOUT_S: ${SLM_TIMEOUT_S:-4}
+      SLM_MAX_WINDOWS: ${SLM_MAX_WINDOWS:-3}
+      SLM_MAX_ADDED_SPANS: ${SLM_MAX_ADDED_SPANS:-8}
+    depends_on:
+      presidio-analyzer-core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:3000/health')"]
+      interval: 5s
+      retries: 30
+
+  presidio-analyzer-core:
+    image: ${PRESIDIO_ANALYZER_IMAGE:-ghcr.io/data-privacy-stack/presidio-analyzer:2.2.362}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || python -c \"import urllib.request;urllib.request.urlopen('http://localhost:3000/health')\""]
+      interval: 5s
+      retries: 30
+
+  presidio-anonymizer:
+    image: ${PRESIDIO_ANONYMIZER_IMAGE:-ghcr.io/data-privacy-stack/presidio-anonymizer:2.2.362}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || python -c \"import urllib.request;urllib.request.urlopen('http://localhost:3000/health')\""]
+      interval: 5s
+      retries: 30
+
+  # File/OCR extraction (FILE_POLICY=extract). Heavy: PyTorch CPU + marker-pdf. up.sh adds the `ocr`
+  # profile automatically when FILE_POLICY=extract. No network access is needed at runtime.
+  extractor:
+    profiles: ["ocr"]
+    build:
+      context: .
+      dockerfile: extractor/Dockerfile
+      args:
+        INSTALL_MARKER: "1"
+        TORCH_VERSION: ${TORCH_VERSION:-2.14.1+cpu}
+    image: pii-guard/marker-extractor:local
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=2g"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: ${EXTRACT_MEMORY_LIMIT:-8g}
+    cpus: ${EXTRACT_CPU_LIMIT:-4}
+    environment:
+      EXTRACT_BACKEND: marker
+      EXTRACT_OCR: ${EXTRACT_OCR:-off}
+      EXTRACT_MAX_BYTES: ${EXTRACT_MAX_BYTES:-20971520}
+      EXTRACT_MAX_PAGES: ${EXTRACT_MAX_PAGES:-100}
+      EXTRACT_TIMEOUT_S: ${EXTRACT_TIMEOUT_S:-120}
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      retries: 12
+
+  # Optional local SLM for the analyzer's second opinion (ENABLE_SLM_GATE=1 with
+  # SLM_BASE_URL=http://ollama:11434/v1). up.sh adds the `slm` profile and pulls SLM_MODEL once.
+  ollama:
+    profiles: ["slm"]
+    image: ${OLLAMA_IMAGE:-ollama/ollama:0.12.6}
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      retries: 12
+
+  # Test only (./scripts/up.sh test): fake Anthropic upstream that records what the gateway sends.
+  upstream-recorder:
+    profiles: ["test"]
+    image: node:22-alpine
+    command: ["node", "/app/mock-upstream.mjs"]
+    volumes:
+      - ./scripts/mock-upstream.mjs:/app/mock-upstream.mjs:ro
+      - ./logs/captured-requests:/captured
+    ports: ["8089:8089"]
+
+volumes:
+  ollama-models:

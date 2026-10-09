@@ -1,0 +1,16 @@
+{
+  "_comment": "REFERENCE TEMPLATE — do not merge by hand. Run scripts/install-hook.sh, which resolves __POC_DIR__ to this repo's absolute path and merges the entry into ~/.claude/settings.json (with a backup).",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__POC_DIR__/hooks/pii-placeholder-check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
