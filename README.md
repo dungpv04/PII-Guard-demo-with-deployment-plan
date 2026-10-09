@@ -135,6 +135,3 @@ hooks/                 hook Claude Code cảnh báo placeholder bị ghi xuống
 scripts/               up.sh, analyze.sh, test.sh, test_claude_subscription.sh, install-hook.sh
 DEPLOYMENT_PLAN.md                hướng dẫn cài đặt và triển khai chi tiết
 ```
-# PII-Guard-demo-with-deployment-plan
-# PII-Guard-demo-with-deployment-plan
-# PII-Guard-demo-with-deployment-plan
